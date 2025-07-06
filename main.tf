@@ -2,13 +2,25 @@ provider "aws" {
   region = "us-east-1"
 }
 
+# 🔍 Fetch latest Amazon Linux 2 AMI dynamically
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+}
+
 resource "aws_key_pair" "splunk_key" {
   key_name   = "splunk-key"
-  public_key = file("~/.ssh/id_rsa.pub")
+  public_key = file("~/.ssh/id_rsa.pub") # Replace with your actual path if needed
 }
 
 resource "aws_security_group" "splunk_sg" {
   name        = "splunk-sg"
+  description = "Allow Splunk Web UI and SSH"
 
   ingress {
     from_port   = 8000
@@ -33,7 +45,7 @@ resource "aws_security_group" "splunk_sg" {
 }
 
 resource "aws_instance" "splunk" {
-  ami           = "ami-0c2b8ca1dad447f8a"
+  ami           = data.aws_ami.amazon_linux_2.id
   instance_type = "t3.medium"
   key_name      = aws_key_pair.splunk_key.key_name
   security_groups = [aws_security_group.splunk_sg.name]
