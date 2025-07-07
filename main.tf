@@ -1,8 +1,26 @@
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.0"
+    }
+  }
+}
+
 provider "aws" {
   region = "us-east-1"
 }
 
-# 🔍 Fetch latest Amazon Linux 2 AMI dynamically
+# Generate a random suffix to avoid name duplication
+resource "random_id" "suffix" {
+  byte_length = 4
+}
+
+# Get latest Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux_2" {
   most_recent = true
   owners      = ["amazon"]
@@ -13,14 +31,16 @@ data "aws_ami" "amazon_linux_2" {
   }
 }
 
+# Use public key from GitHub Secrets via terraform.tfvars
 resource "aws_key_pair" "splunk_key" {
-  key_name   = "splunk-key-ci"
-  public_key = var.public_key # Replace with your actual path if needed
+  key_name   = "splunk-key-${random_id.suffix.hex}"
+  public_key = var.public_key
 }
 
+# Security Group allowing port 8000 (Splunk Web) and SSH
 resource "aws_security_group" "splunk_sg" {
-  name        = "splunk-sg"
-  description = "Allow Splunk Web UI and SSH"
+  name        = "splunk-sg-${random_id.suffix.hex}"
+  description = "Allow Splunk Web and SSH"
 
   ingress {
     from_port   = 8000
@@ -44,6 +64,7 @@ resource "aws_security_group" "splunk_sg" {
   }
 }
 
+# Launch EC2 instance and install Splunk
 resource "aws_instance" "splunk" {
   ami           = data.aws_ami.amazon_linux_2.id
   instance_type = "t3.medium"
