@@ -2,15 +2,16 @@ name: Deploy Splunk on AWS
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   terraform:
-    name: Terraform Deploy
+    name: Deploy with Terraform
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout Repo
         uses: actions/checkout@v3
 
       - name: Setup Terraform
@@ -18,12 +19,16 @@ jobs:
         with:
           terraform_version: 1.6.0
 
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
+
+      - name: Inject SSH Public Key from Secret
+        run: |
+          echo 'public_key = "${{ secrets.PUBLIC_SSH_KEY }}"' > terraform.tfvars
 
       - name: Terraform Init
         run: terraform init
