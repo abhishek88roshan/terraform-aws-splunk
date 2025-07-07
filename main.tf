@@ -15,12 +15,12 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Generate a random suffix to avoid name duplication
+# Generate random suffix to avoid duplication
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
-# Get latest Amazon Linux 2 AMI
+# Fetch latest Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux_2" {
   most_recent = true
   owners      = ["amazon"]
@@ -31,16 +31,16 @@ data "aws_ami" "amazon_linux_2" {
   }
 }
 
-# Use public key from GitHub Secrets via terraform.tfvars
+# Inject public key (from GitHub Actions secret)
 resource "aws_key_pair" "splunk_key" {
   key_name   = "splunk-key-${random_id.suffix.hex}"
   public_key = var.public_key
 }
 
-# Security Group allowing port 8000 (Splunk Web) and SSH
+# Create security group with required ports
 resource "aws_security_group" "splunk_sg" {
   name        = "splunk-sg-${random_id.suffix.hex}"
-  description = "Allow Splunk Web and SSH"
+  description = "Allow Splunk Web UI and SSH access"
 
   ingress {
     from_port   = 8000
@@ -75,10 +75,24 @@ resource "aws_instance" "splunk" {
               #!/bin/bash
               yum update -y
               yum install wget -y
-              wget -O splunk.rpm 'https://download.splunk.com/products/splunk/releases/9.2.1/linux/splunk-9.2.1-b6b9c8185839-linux-2.6-x86_64.rpm'
-              rpm -i splunk.rpm
-              /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt --seed-passwd 'admin123'
-              /opt/splunk/bin/splunk enable boot-start
+
+              # Download and install Splunk
+              wget -O /tmp/splunk.rpm "https://download.splunk.com/products/splunk/releases/9.2.1/linux/splunk-9.2.1-b6b9c8185839-linux-2.6-x86_64.rpm"
+              rpm -i /tmp/splunk.rpm
+
+              # Enable Splunk at boot
+              /opt/splunk/bin/splunk enable boot-start --accept-license --answer-yes --no-prompt
+
+              # Set initial admin password
+              echo "[user_info]" > /opt/splunk/etc/system/local/user-seed.conf
+              echo "USERNAME=admin" >> /opt/splunk/etc/system/local/user-seed.conf
+              echo "PASSWORD=admin123" >> /opt/splunk/etc/system/local/user-seed.conf
+
+              # Start Splunk
+              /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt
+
+              # Disable firewall (if enabled)
+              systemctl stop firewalld || true
               EOF
 
   tags = {
