@@ -15,32 +15,32 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Generate random suffix to avoid duplication
+# Generate a random suffix to avoid name conflicts
 resource "random_id" "suffix" {
   byte_length = 4
 }
 
-# Fetch latest Amazon Linux 2 AMI
-data "aws_ami" "amazon_linux_2" {
+# Get the latest Amazon Linux 2023 AMI
+data "aws_ami" "amazon_linux_2023" {
   most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+    values = ["al2023-ami-*-x86_64"]
   }
 }
 
-# Inject public key (from GitHub Actions secret)
+# Inject SSH public key (to be passed from GitHub Secret or .tfvars)
 resource "aws_key_pair" "splunk_key" {
   key_name   = "splunk-key-${random_id.suffix.hex}"
   public_key = var.public_key
 }
 
-# Create security group with required ports
+# Security group to allow Splunk (8000) and SSH (22)
 resource "aws_security_group" "splunk_sg" {
   name        = "splunk-sg-${random_id.suffix.hex}"
-  description = "Allow Splunk Web UI and SSH access"
+  description = "Allow Splunk Web and SSH"
 
   ingress {
     from_port   = 8000
@@ -64,35 +64,31 @@ resource "aws_security_group" "splunk_sg" {
   }
 }
 
-# Launch EC2 instance and install Splunk
+# EC2 Instance with Splunk installation via user_data
 resource "aws_instance" "splunk" {
-  ami           = data.aws_ami.amazon_linux_2.id
-  instance_type = "t3.medium"
-  key_name      = aws_key_pair.splunk_key.key_name
-  security_groups = [aws_security_group.splunk_sg.name]
+  ami                    = data.aws_ami.amazon_linux_2023.id
+  instance_type          = "t3.medium"
+  key_name               = aws_key_pair.splunk_key.key_name
+  vpc_security_group_ids = [aws_security_group.splunk_sg.id]
 
   user_data = <<-EOF
               #!/bin/bash
-              sudo yum update -y
-              sudo yum install wget -y
+              set -e
+              sudo dnf update -y
+              sudo dnf install -y wget
+              cd /opt
+              wget -O splunk.rpm "https://download.splunk.com/products/splunk/releases/9.4.3/linux/splunk-9.4.3-237ebbd22314.x86_64.rpm"
+              rpm -i splunk.rpm
 
-              # Download and install Splunk
-              sudo wget -O /tmp/splunk.rpm "https://download.splunk.com/products/splunk/releases/9.2.1/linux/splunk-9.2.1-b6b9c8185839-linux-2.6-x86_64.rpm"
-              sudo rpm -i /tmp/splunk.rpm
+              mkdir -p /opt/splunk/etc/system/local
+              cat <<EOT > /opt/splunk/etc/system/local/user-seed.conf
+              [user_info]
+              USERNAME = admin
+              PASSWORD = admin123
+              EOT
 
-              # Enable Splunk at boot
-              sudo /opt/splunk/bin/splunk enable boot-start --accept-license --answer-yes --no-prompt
-
-              # Set initial admin password
-              sudo echo "[user_info]" > /opt/splunk/etc/system/local/user-seed.conf
-              sudo echo "USERNAME=admin" >> /opt/splunk/etc/system/local/user-seed.conf
-              sudo echo "PASSWORD=admin123" >> /opt/splunk/etc/system/local/user-seed.conf
-
-              # Start Splunk
-              sudo /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt
-
-              # Disable firewall (if enabled)
-              sudo systemctl stop firewalld || true
+              /opt/splunk/bin/splunk enable boot-start --accept-license --answer-yes --no-prompt
+              /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt
               EOF
 
   tags = {
