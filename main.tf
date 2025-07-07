@@ -73,26 +73,26 @@ resource "aws_instance" "splunk" {
 
   user_data = <<-EOF
               #!/bin/bash
-              yum update -y
-              yum install wget -y
+              sudo yum update -y
+              sudo yum install wget -y
 
               # Download and install Splunk
-              wget -O /tmp/splunk.rpm "https://download.splunk.com/products/splunk/releases/9.2.1/linux/splunk-9.2.1-b6b9c8185839-linux-2.6-x86_64.rpm"
-              rpm -i /tmp/splunk.rpm
+              sudo wget -O /tmp/splunk.rpm "https://download.splunk.com/products/splunk/releases/9.2.1/linux/splunk-9.2.1-b6b9c8185839-linux-2.6-x86_64.rpm"
+              sudo rpm -i /tmp/splunk.rpm
 
               # Enable Splunk at boot
-              /opt/splunk/bin/splunk enable boot-start --accept-license --answer-yes --no-prompt
+              sudo /opt/splunk/bin/splunk enable boot-start --accept-license --answer-yes --no-prompt
 
               # Set initial admin password
-              echo "[user_info]" > /opt/splunk/etc/system/local/user-seed.conf
-              echo "USERNAME=admin" >> /opt/splunk/etc/system/local/user-seed.conf
-              echo "PASSWORD=admin123" >> /opt/splunk/etc/system/local/user-seed.conf
+              sudo echo "[user_info]" > /opt/splunk/etc/system/local/user-seed.conf
+              sudo echo "USERNAME=admin" >> /opt/splunk/etc/system/local/user-seed.conf
+              sudo echo "PASSWORD=admin123" >> /opt/splunk/etc/system/local/user-seed.conf
 
               # Start Splunk
-              /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt
+              sudo /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt
 
               # Disable firewall (if enabled)
-              systemctl stop firewalld || true
+              sudo systemctl stop firewalld || true
               EOF
 
   tags = {
