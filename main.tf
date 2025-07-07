@@ -15,7 +15,7 @@ data "aws_ami" "amazon_linux_2" {
 
 resource "aws_key_pair" "splunk_key" {
   key_name   = "splunk-key"
-  public_key = file("/home/ec2-user/splunk-key.pub") # Replace with your actual path if needed
+  public_key = var.public_key # Replace with your actual path if needed
 }
 
 resource "aws_security_group" "splunk_sg" {
