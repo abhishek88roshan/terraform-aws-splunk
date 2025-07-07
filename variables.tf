@@ -1,4 +1,4 @@
 variable "public_key" {
-  description = "SSH public key for EC2"
+  description = "SSH public key for EC2 instance"
   type        = string
 }
