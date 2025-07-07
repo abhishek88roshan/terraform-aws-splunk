@@ -71,27 +71,38 @@ resource "aws_instance" "splunk" {
   key_name               = aws_key_pair.splunk_key.key_name
   vpc_security_group_ids = [aws_security_group.splunk_sg.id]
 
-  user_data = <<-EOF
+    user_data = <<-EOF
               #!/bin/bash
               set -e
+
+              echo "🟡 Updating system"
               sudo dnf update -y
-              sudo dnf install -y wget
-              cd /opt
-              wget -O splunk.rpm "https://download.splunk.com/products/splunk/releases/9.4.3/linux/splunk-9.4.3-237ebbd22314.x86_64.rpm"
-              rpm -i splunk.rpm
 
-              mkdir -p /opt/splunk/etc/system/local
-              cat <<EOT > /opt/splunk/etc/system/local/user-seed.conf
-              [user_info]
-              USERNAME = admin
-              PASSWORD = admin123
-              EOT
+              echo "🟢 Installing dependencies"
+              sudo dnf install -y wget tar
 
-              /opt/splunk/bin/splunk enable boot-start --accept-license --answer-yes --no-prompt
-              /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt
+              echo "🔽 Downloading Splunk RPM"
+              sudo mkdir -p /opt/downloads
+              cd /opt/downloads
+              sudo wget -O splunk.rpm "https://download.splunk.com/products/splunk/releases/9.4.3/linux/splunk-9.4.3-237ebbd22314.x86_64.rpm"
+
+              echo "📦 Installing Splunk"
+              sudo rpm -i splunk.rpm
+
+              echo "⚙️ Configuring Splunk to listen on public interface"
+              sudo mkdir -p /opt/splunk/etc/system/local
+              cat <<EOC | sudo tee /opt/splunk/etc/system/local/web.conf
+              [settings]
+              enableSplunkWebSSL = false
+              httpport = 8000
+              server.socket_host = 0.0.0.0
+              EOC
+
+              echo "🚀 Starting Splunk with license acceptance"
+              sudo /opt/splunk/bin/splunk start --accept-license --answer-yes --no-prompt
+
+              echo "✅ Splunk installed and started successfully"
               EOF
 
-  tags = {
-    Name = "SplunkServer"
   }
 }
